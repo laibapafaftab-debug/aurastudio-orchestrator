@@ -1,4 +1,4 @@
-# aurastudio-orchestrator
+# Aurastudio-orchestrator
 # AuraStudio — AI Lead Capture & Automation
 
 Marketing website for **AuraStudio**, an AI lead-capture and follow-up automation studio. Built with plain HTML, CSS and JavaScript so it can be hosted free on GitHub Pages and moved to a custom domain later.
