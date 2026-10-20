@@ -1,0 +1,71 @@
+# Production stack: Caddy (HTTPS) in front of backend, dashboard and n8n.
+# Only Caddy publishes ports (80 and 443). Everything else is reachable only inside the Docker network.
+#
+# Start:  docker compose -f docker-compose.prod.yml up -d --build
+services:
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      N8N_DOMAIN: ${N8N_DOMAIN:-n8n.invalid}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file: .env
+    volumes:
+      - aura_data:/srv/data
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  n8n:
+    # Pin a specific version tag here so updates are deliberate.
+    image: docker.n8n.io/n8nio/n8n
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      GENERIC_TIMEZONE: ${TZ:-UTC}
+      # Only matter if you enable the optional n8n block in infra/caddy/Caddyfile:
+      N8N_HOST: ${N8N_DOMAIN:-localhost}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://${N8N_DOMAIN:-localhost}/
+      # Set N8N_SECURE_COOKIE=false only if you reach the editor over plain http (for example an SSH tunnel).
+      N8N_SECURE_COOKIE: ${N8N_SECURE_COOKIE:-true}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    expose:
+      - "5678"
+    restart: unless-stopped
+
+volumes:
+  aura_data:
+  n8n_data:
+  caddy_data:
+  caddy_config:
